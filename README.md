@@ -7,18 +7,7 @@ Bu proje, modern bir MIDI sequencer web uygulamasıdır. Sadece HTML, CSS (Tailw
 1. **Dosyaları İndir:**
    - `index.html` dosyasını bu klasöre kaydedin.
 
-2. **Çalıştırma:**
-   - `index.html` dosyasına çift tıklayarak veya bir tarayıcıda açarak uygulamayı kullanabilirsiniz.
-   - Alternatif olarak, bir terminalde bu klasöre gelip basit bir sunucu başlatabilirsiniz:
-     - Python ile:
-       ```sh
-       python -m http.server 8000
-       ```
-     - Node.js ile (http-server yüklüyse):
-       ```sh
-       npx http-server .
-       ```
-   - Ardından tarayıcınızda `http://localhost:8000` adresine gidin.
+2. https://emkapia.github.io/webmidiseq/
 
 ## Özellikler
 - Modern ve responsive arayüz
