@@ -1,0 +1,1718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web MIDI Sequencer - Modern MIDI Sequencer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/tone@14.8.49/build/Tone.js"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e293b',
+                        secondary: '#0f172a',
+                        accent: '#6366f1',
+                        piano: '#0f172a',
+                        grid: '#334155',
+                        note: {
+                            blue: '#60a5fa',
+                            green: '#34d399',
+                            purple: '#a78bfa',
+                            yellow: '#fbbf24',
+                            red: '#f87171',
+                            teal: '#2dd4bf',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/css">
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: sans-serif;
+            background-color: #1e293b;
+        }
+        
+        /* Main Layout */
+        .sequencer-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .timeline-header {
+            display: flex;
+            flex-shrink: 0;
+            height: 24px;
+            border-bottom: 1px solid #334155;
+            background-color: #0f172a;
+        }
+
+        .header-chord-spacer {
+            width: 80px; /* Same as chord library */
+            flex-shrink: 0;
+            border-right: 1px solid #334155;
+            box-sizing: border-box;
+        }
+
+        .header-piano-spacer {
+            width: 80px;
+            flex-shrink: 0;
+            border-right: 1px solid #334155;
+            box-sizing: border-box;
+        }
+
+        .timeline-markers {
+            position: relative;
+            flex-grow: 1;
+            overflow: hidden;
+            cursor: ew-resize;
+        }
+
+        .timeline-marker {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            padding-left: 4px;
+            font-size: 10px;
+            color: #94a3b8;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            box-sizing: border-box;
+        }
+
+        .sequencer-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden; /* Let children handle scroll */
+        }
+
+        .chord-library-left {
+            width: 80px;
+            flex-shrink: 0;
+            background: #0f172a;
+            border-right: 1px solid #334155;
+            overflow: hidden;
+            padding: 4px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chord-btn {
+            width: 100%;
+            padding: 6px 0;
+            margin-bottom: 4px;
+            background-color: #334155;
+            color: #cbd5e1;
+            border: 1px solid #4b5563;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chord-btn:hover {
+            background-color: #4b5563;
+        }
+
+        .chord-btn.active {
+            background-color: #6366f1;
+            border-color: #a78bfa;
+            color: white;
+            font-weight: bold;
+        }
+
+        .piano-roll-keys {
+            width: 80px;
+            flex-shrink: 0;
+            background: #0f172a;
+            overflow: hidden; 
+            position: relative;
+        }
+        
+        .piano-key {
+            width: 100%;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 1px solid #334155;
+            box-sizing: border-box;
+            user-select: none;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        
+        .black-key {
+            background: #0f172a;
+        }
+        
+        .white-key {
+            background: #1e293b;
+        }
+        
+        .grid-area {
+            flex-grow: 1;
+            overflow: auto; /* This will have both scrollbars */
+            position: relative;
+        }
+
+        .grid-content {
+            position: relative;
+        }
+        
+        .grid-row {
+            display: flex;
+            height: 32px;
+        }
+
+        .grid-cell {
+            height: 100%;
+            border-right: 1px solid #334155;
+            border-bottom: 1px solid #334155;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        
+        .grid-cell:hover {
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .note {
+            position: absolute;
+            border-radius: 4px;
+            background-color: #60a5fa;
+            cursor: move;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(0, 0, 0, 0.7);
+            font-weight: 600;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            box-sizing: border-box;
+            z-index: 3;
+        }
+        
+        .note:hover {
+            filter: brightness(1.2);
+        }
+
+        .playhead {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #ec4899;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 5px;
+        }
+        
+        /* Toggle switch */
+        .toggle-checkbox:checked + .toggle-label {
+            background: #6366f1;
+        }
+        
+        .note.selected {
+            border: 2px solid white;
+            z-index: 5;
+        }
+        
+        .velocity-indicator {
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.6);
+            position: absolute;
+            bottom: 2px;
+            left: 4px;
+            right: 4px;
+        }
+
+        .resize-handle {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 10px;
+            height: 100%;
+            cursor: ew-resize;
+            z-index: 4;
+        }
+        
+        .bg-black-key-row {
+            background: #1a2533;
+        }
+        .bg-white-key-row {
+            background: #273449;
+        }
+    </style>
+</head>
+<body class="bg-primary text-slate-200">
+    <!-- Main App Container -->
+    <div class="flex flex-col h-screen">
+        <!-- Toolbar -->
+        <div class="bg-secondary border-b border-slate-700 p-3 flex-shrink-0">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <a href="#" onclick="location.reload(); return false;" class="flex items-center text-xl font-bold text-white no-underline" title="Reload Sequencer">
+                        <img src="mixer-icon.png" alt="WebMidiSequencer Logo" class="w-8 h-8 mr-2">
+                        <span>WebMidiSequencer</span>
+                    </a>
+                    <div class="flex items-center space-x-2">
+                        <button id="importMidiBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md flex items-center justify-center transition text-sm">
+                            <i class="fas fa-upload mr-2"></i> Import MIDI
+                        </button>
+                        <button id="exportMidiBtn" class="bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded-md flex items-center justify-center transition text-sm">
+                            <i class="fas fa-download mr-2"></i> Export MIDI
+                        </button>
+                        <input type="file" id="midi-file-input" accept=".mid,.midi" style="display: none;" />
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="playBtn" class="w-10 h-10 bg-accent hover:bg-indigo-500 rounded-full flex items-center justify-center transition"><i class="fas fa-play"></i></button>
+                        <button id="pauseBtn" class="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center justify-center transition"><i class="fas fa-pause"></i></button>
+                        <button id="stopBtn" class="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center justify-center transition"><i class="fas fa-stop"></i></button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm"><i class="fas fa-tachometer-alt mr-1"></i> Tempo</span>
+                        <input id="tempoSlider" type="range" min="40" max="240" value="120" class="w-32 accent-accent">
+                        <span id="tempoValue" class="text-sm w-10">120 BPM</span>
+                    </div>
+                    <button id="metronomeBtn" class="ml-4 w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-full flex items-center justify-center transition" title="Metronome">
+                        <i class="fas fa-bell"></i>
+                    </button>
+                </div>
+                <div class="flex items-center space-x-4">
+                     <div class="text-xs">Quantize</div>
+                    <select class="bg-slate-700 rounded-md py-0.5 px-0.5 text-xs focus:outline-none cursor-pointer" id="quantizeSelect">
+                        <option>1/4 Note</option>
+                        <option selected>1/8 Note</option>
+                        <option>1/16 Note</option>
+                        <option>1/32 Note</option>
+                    </select>
+                    <div class="text-xs ml-4">Measures</div>
+                    <input id="numBarsInput" type="number" min="1" max="150" value="4" class="bg-slate-700 rounded-md py-0.5 px-2 text-xs w-16 focus:outline-none text-center">
+                </div>
+            </div>
+        </div>
+        <!-- Edit Toolbar -->
+        <div class="bg-secondary border-b border-slate-700 flex items-center px-2 py-1 space-x-2" id="edit-toolbar">
+            <button id="cutBtn" class="hover:bg-slate-600 p-2 rounded" title="Cut"><i class="fas fa-scissors"></i></button>
+            <button id="copyBtn" class="hover:bg-slate-600 p-2 rounded" title="Copy"><i class="fas fa-copy"></i></button>
+            <button id="pasteBtn" class="hover:bg-slate-600 p-2 rounded" title="Paste"><i class="fas fa-paste"></i></button>
+            <button id="selectAllBtn" class="hover:bg-slate-600 p-2 rounded" title="Select All"><i class="fas fa-border-all"></i></button>
+            <span class="mx-2 border-l border-slate-700 h-6"></span>
+            <button id="undoBtn" class="hover:bg-slate-600 p-2 rounded" title="Undo"><i class="fas fa-undo"></i></button>
+            <button id="redoBtn" class="hover:bg-slate-600 p-2 rounded" title="Redo"><i class="fas fa-redo"></i></button>
+            <span class="mx-2 border-l border-slate-700 h-6"></span>
+            <button id="zoomOutBtn" class="hover:bg-slate-600 p-2 rounded" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
+            <button id="zoomInBtn" class="hover:bg-slate-600 p-2 rounded" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+        </div>
+        
+        <div class="flex flex-1 overflow-hidden">
+             <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- Sequencer Main Content -->
+                <div class="sequencer-container">
+                    <div class="timeline-header">
+                        <div class="header-chord-spacer"></div>
+                        <div class="header-piano-spacer"></div>
+                        <div id="timeline-markers-container" class="timeline-markers"></div>
+                    </div>
+                    <div class="sequencer-body">
+                        <div id="chord-library-left" class="chord-library-left"></div>
+                        <div id="piano-roll-keys" class="piano-roll-keys"></div>
+                        <div id="grid-area" class="grid-area">
+                            <div id="grid-content" class="grid-content"></div>
+                            <div class="playhead" style="left: 0;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const pianoRollKeys = document.getElementById('piano-roll-keys');
+        const gridContent = document.getElementById('grid-content');
+        const gridArea = document.getElementById('grid-area');
+        const timelineMarkersContainer = document.getElementById('timeline-markers-container');
+        const chordLibraryContainer = document.getElementById('chord-library-left');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const tempoSlider = document.getElementById('tempoSlider');
+        const tempoValue = document.getElementById('tempoValue');
+        const metronomeBtn = document.getElementById('metronomeBtn');
+        const quantizeSelect = document.getElementById('quantizeSelect');
+        const numBarsInput = document.getElementById('numBarsInput');
+        const playhead = document.querySelector('.playhead');
+        const importMidiBtn = document.getElementById('importMidiBtn');
+        const midiFileInput = document.getElementById('midi-file-input');
+        // Edit Toolbar Buttons
+        const cutBtn = document.getElementById('cutBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const pasteBtn = document.getElementById('pasteBtn');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const exportMidiBtn = document.getElementById('exportMidiBtn');
+
+        // --- Constants & State ---
+        const PIANO_KEY_HEIGHT = 32;
+        const noteNames = [];
+        const startMidi = 96; // C7
+        const endMidi = 12;   // C0
+        
+        const quantizeMap = {
+            '1/4 Note': { cols: 16, size: 64 },
+            '1/8 Note': { cols: 32, size: 32 },
+            '1/16 Note': { cols: 64, size: 16 },
+            '1/32 Note': { cols: 128, size: 8 }
+        };
+
+        const CHORDS = {
+            'Solo': [0],
+            "maj":  [0, 4, 7],
+            "min":  [0, 3, 7],
+            "7":    [0, 4, 7, 10],
+            "maj7": [0, 4, 7, 11],
+            "min7": [0, 3, 7, 10],
+            "9":    [0, 4, 7, 10, 14],
+            "11":   [0, 4, 7, 10, 14, 17],
+            "13":   [0, 4, 7, 10, 14, 17, 21],
+            "sus2": [0, 2, 7],
+            "sus4": [0, 5, 7],
+            "add9": [0, 4, 7, 14],
+        };
+
+        let quantizeValue = '1/8 Note';
+        let numBars = 4;
+        let cellsPerBar = quantizeMap[quantizeValue].cols / 4;
+        let gridCols = cellsPerBar * numBars;
+        let cellSize = quantizeMap[quantizeValue].size;
+        const gridRows = (startMidi - endMidi) + 1;
+        
+        let gridNotes = Array.from({ length: gridRows }, () => Array(gridCols).fill(null));
+        let isPlaying = false;
+        let bpm = 120;
+        let currentNoteVelocity = 100;
+        let activeChordType = 'Solo';
+        let isMetronomeOn = false;
+        let isScrubbing = false;
+        let noteSequence = null; // To hold the Tone.Sequence instance
+
+        // Clipboard for cut/copy/paste
+        let noteClipboard = [];
+        let clipboardOffset = { row: 0, col: 0 };
+        // Undo/Redo stacks
+        let undoStack = [];
+        let redoStack = [];
+
+        // Zoom state
+        let zoomLevel = 1.0;
+        const zoomLevels = [0.5, 0.75, 1.0, 1.5, 2.0, 3.0];
+        let currentZoomIndex = 2; // Corresponds to 1.0
+
+        // Add this at the beginning of the script
+        const midiWorker = new Worker(URL.createObjectURL(new Blob([`
+            self.onmessage = async function(e) {
+                const { midi, startMidi, gridRows, gridCols, subdivision, cellDurationInSeconds } = e.data;
+                
+                // Process MIDI data
+                const chunkSize = 1000;
+                const allNotes = [];
+                midi.tracks.forEach(track => {
+                    track.notes.forEach(note => {
+                        allNotes.push(note);
+                    });
+                });
+
+                // Sort notes by time
+                allNotes.sort((a, b) => a.time - b.time);
+                
+                // Process in chunks
+                const gridNotes = Array.from({ length: gridRows }, () => Array(gridCols).fill(null));
+                
+                for (let i = 0; i < allNotes.length; i += chunkSize) {
+                    const chunk = allNotes.slice(i, i + chunkSize);
+                    
+                    chunk.forEach(note => {
+                        const row = startMidi - note.midi;
+                        if (row < 0 || row >= gridRows) return;
+
+                        const col = Math.round(note.time / cellDurationInSeconds);
+                        let durationInCells = Math.max(1, Math.round(note.duration / cellDurationInSeconds));
+
+                        if (col >= gridCols) return;
+
+                        if (col + durationInCells > gridCols) {
+                            durationInCells = gridCols - col;
+                        }
+
+                        if (!gridNotes[row][col]) {
+                            gridNotes[row][col] = {
+                                duration: durationInCells,
+                                velocity: Math.round(note.velocity * 127),
+                                selected: false
+                            };
+                            for (let i = 1; i < durationInCells; i++) {
+                                gridNotes[row][col + i] = { linked: true };
+                            }
+                        }
+                    });
+
+                    // Report progress
+                    self.postMessage({ 
+                        type: 'progress', 
+                        progress: Math.min(100, Math.round((i + chunk.length) / allNotes.length * 100))
+                    });
+                }
+
+                // Send processed data back
+                self.postMessage({ type: 'complete', gridNotes });
+            };
+        `], { type: 'text/javascript' })));
+
+        // --- Initialization ---
+        const midiToNote = (midi) => {
+            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            return names[midi % 12] + (Math.floor(midi / 12) - 1);
+        };
+
+        for (let midi = startMidi; midi >= endMidi; midi--) {
+            noteNames.push(midiToNote(midi));
+        }
+
+        const synth = new Tone.Sampler({
+            urls: {
+                "A0": "A0.mp3", "C1": "C1.mp3", "D#1": "Ds1.mp3", "F#1": "Fs1.mp3", 
+                "A1": "A1.mp3", "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3", 
+                "A2": "A2.mp3", "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", 
+                "A3": "A3.mp3", "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", 
+                "A4": "A4.mp3", "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", 
+                "A5": "A5.mp3", "C6": "C6.mp3", "D#6": "Ds6.mp3", "F#6": "Fs6.mp3", 
+                "A6": "A6.mp3", "C7": "C7.mp3"
+            },
+            release: 1,
+            baseUrl: "https://tonejs.github.io/audio/salamander/"
+        }).toDestination();
+
+        const metronomeTick = new Tone.MembraneSynth({
+            pitchDecay: 0.01, octaves: 8, oscillator: { type: 'square' },
+            envelope: { attack: 0.001, decay: 0.2, sustain: 0 }
+        }).toDestination();
+        const metronomeTock = new Tone.MembraneSynth({
+            pitchDecay: 0.01, octaves: 4, oscillator: { type: 'sine' },
+            envelope: { attack: 0.001, decay: 0.4, sustain: 0 }
+        }).toDestination();
+
+        // --- Core Functions ---
+        function playNote(noteName, velocity = currentNoteVelocity) {
+            const subdivision = (quantizeMap[quantizeValue].cols / 4) + 'n';
+            synth.triggerAttackRelease(noteName, subdivision, Tone.now(), velocity / 127);
+        }
+
+        function renderSequencer() {
+            pianoRollKeys.innerHTML = '';
+            gridContent.innerHTML = '';
+            timelineMarkersContainer.innerHTML = '';
+
+            const totalWidth = gridCols * cellSize;
+            gridContent.style.width = `${totalWidth}px`;
+            
+            // Create document fragment for better performance
+            const pianoKeysFragment = document.createDocumentFragment();
+            const gridFragment = document.createDocumentFragment();
+            const timelineFragment = document.createDocumentFragment();
+            
+            for (let row = 0; row < gridRows; row++) {
+                const noteName = noteNames[row];
+                const isBlack = noteName.includes('#');
+
+                const key = document.createElement('div');
+                key.className = `piano-key ${isBlack ? 'black-key' : 'white-key'}`;
+                key.innerHTML = `<span>${noteName}</span>`;
+                key.addEventListener('mousedown', () => playNote(noteName));
+                pianoKeysFragment.appendChild(key);
+
+                const gridRowDiv = document.createElement('div');
+                gridRowDiv.className = 'grid-row';
+                for (let col = 0; col < gridCols; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = `grid-cell ${isBlack ? 'bg-black-key-row' : 'bg-white-key-row'}`;
+                    cell.style.width = `${cellSize}px`;
+                    cell.setAttribute('data-row', row);
+                    cell.setAttribute('data-col', col);
+                    cell.addEventListener('mousedown', () => handleGridClick(row, col));
+                    gridRowDiv.appendChild(cell);
+                }
+                gridFragment.appendChild(gridRowDiv);
+            }
+            
+            const beatsPerBar = 4;
+            const cellsPerBar = quantizeMap[quantizeValue].cols / beatsPerBar;
+            const numBars = Math.floor(gridCols / cellsPerBar);
+
+            for (let i = 0; i < numBars; i++) {
+                const marker = document.createElement('div');
+                marker.className = 'timeline-marker';
+                marker.textContent = i + 1;
+                marker.style.left = `${i * cellsPerBar * cellSize}px`;
+                marker.style.width = `${cellsPerBar * cellSize}px`;
+                timelineFragment.appendChild(marker);
+            }
+            
+            // Batch DOM updates
+            pianoRollKeys.appendChild(pianoKeysFragment);
+            gridContent.appendChild(gridFragment);
+            timelineMarkersContainer.appendChild(timelineFragment);
+             
+            playhead.style.height = `${gridRows * PIANO_KEY_HEIGHT}px`;
+            renderGridNotes();
+        }
+        
+        function renderGridNotes() {
+            const existingNotes = gridContent.querySelectorAll('.note');
+            existingNotes.forEach(note => note.remove());
+
+            const notesFragment = document.createDocumentFragment();
+            
+            // Batch note creation
+            const notesToRender = [];
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const noteObj = gridNotes[row][col];
+                    if (noteObj && !noteObj.linked) {
+                        notesToRender.push({ row, col, noteObj });
+                    }
+                }
+            }
+
+            notesToRender.forEach(({ row, col, noteObj }) => {
+                const duration = noteObj.duration || 1;
+                const noteElement = document.createElement('div');
+                noteElement.className = 'note';
+                noteElement.style.height = `${PIANO_KEY_HEIGHT - 2}px`;
+                noteElement.style.width = `${(cellSize * duration) - 2}px`;
+                noteElement.style.top = `${row * PIANO_KEY_HEIGHT + 1}px`;
+                noteElement.style.left = `${col * cellSize + 1}px`;
+                noteElement.setAttribute('data-row', row);
+                noteElement.setAttribute('data-col', col);
+                noteElement.innerHTML = `<div class="resize-handle"></div>`;
+                
+                if (noteObj.selected) {
+                    noteElement.classList.add('selected');
+                }
+
+                noteElement.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    saveStateForUndo();
+                    deleteNote(row, col);
+                });
+
+                setupNoteInteractions(noteElement);
+                notesFragment.appendChild(noteElement);
+            });
+
+            gridContent.appendChild(notesFragment);
+        }
+
+        // Separate function for note interactions setup
+        function setupNoteInteractions(noteElement) {
+            const interactInstance = interact(noteElement);
+            
+            // Store interact instance for cleanup
+            noteElement.dataset.interactInstance = interactInstance;
+            
+            interactInstance
+                .on('tap', function(event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    
+                    const noteElement = event.currentTarget;
+                    const row = parseInt(noteElement.getAttribute('data-row'));
+                    const col = parseInt(noteElement.getAttribute('data-col'));
+                    const startCol = getNoteStart(row, col);
+                    if (startCol === -1) return;
+
+                    const noteObj = gridNotes[row][startCol];
+
+                    if (event.ctrlKey || event.metaKey) {
+                        noteObj.selected = !noteObj.selected;
+                    } else if (event.shiftKey) {
+                        if (window.lastSelectedNote) {
+                            const [lastRow, lastCol] = window.lastSelectedNote;
+                            const minRow = Math.min(lastRow, row);
+                            const maxRow = Math.max(lastRow, row);
+                            const minCol = Math.min(getNoteStart(lastRow, lastCol), startCol);
+                            const maxCol = Math.max(getNoteStart(lastRow, lastCol), startCol);
+
+                            for (let r = 0; r < gridRows; r++) {
+                                for (let c = 0; c < gridCols; c++) {
+                                    if (gridNotes[r][c] && !gridNotes[r][c].linked) {
+                                        if (r >= minRow && r <= maxRow && c >= minCol && c <= maxCol) {
+                                            gridNotes[r][c].selected = true;
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            noteObj.selected = true;
+                        }
+                    } else {
+                        const wasSelected = noteObj.selected;
+                        const selectedCount = getSelectedNotes().length;
+                        clearSelectedNotes();
+                        if (!wasSelected || selectedCount > 1) {
+                            noteObj.selected = true;
+                        }
+                    }
+                    
+                    window.lastSelectedNote = [row, startCol];
+                    renderGridNotes();
+                })
+                .resizable({
+                    edges: { right: true },
+                    listeners: {
+                        start: function (event) {
+                            const noteElement = event.target;
+                            const row = parseInt(noteElement.getAttribute('data-row'));
+                            const col = parseInt(noteElement.getAttribute('data-col'));
+                            const startCol = getNoteStart(row, col);
+                            if (startCol === -1) return;
+
+                            const noteObj = gridNotes[row][startCol];
+                            if (!noteObj.selected) {
+                                document.querySelectorAll('.note.selected').forEach(el => el.classList.remove('selected'));
+                                clearSelectedNotes();
+                                
+                                noteObj.selected = true;
+                                noteElement.classList.add('selected');
+                            }
+                        },
+                        move: function (event) {
+                            let { width } = event.rect;
+                            event.target.style.width = `${width}px`;
+                        },
+                        end: function(event) {
+                            saveStateForUndo();
+                            const noteElement = event.target;
+                            const row = parseInt(noteElement.getAttribute('data-row'));
+                            const col = parseInt(noteElement.getAttribute('data-col'));
+                            const startCol = getNoteStart(row, col);
+                            if (startCol === -1) return;
+
+                            const newWidth = event.rect.width;
+                            const newDuration = Math.max(1, Math.round(newWidth / cellSize));
+                            
+                            const oldDuration = gridNotes[row][startCol]?.duration || 1;
+                            const deltaDuration = newDuration - oldDuration;
+
+                            if (deltaDuration === 0) {
+                                renderGridNotes();
+                                return;
+                            }
+
+                            const selectedNotes = getSelectedNotes();
+                            let canResize = true;
+                            for (const note of selectedNotes) {
+                                const currentDuration = note.duration || 1;
+                                const targetDuration = currentDuration + deltaDuration;
+                                if (targetDuration < 1 || (note.col + targetDuration) > gridCols) {
+                                    canResize = false;
+                                    break;
+                                }
+                                for(let i = currentDuration; i < targetDuration; i++) {
+                                     if (gridNotes[note.row][note.col + i] && !gridNotes[note.row][note.col + i].selected) {
+                                        canResize = false;
+                                        break;
+                                     }
+                                }
+                                if (!canResize) break;
+                            }
+
+                            if (canResize) {
+                                const notesToResize = JSON.parse(JSON.stringify(selectedNotes));
+                                notesToResize.forEach(note => {
+                                    const currentDuration = gridNotes[note.row][note.col].duration || 1;
+                                    const targetDuration = currentDuration + deltaDuration;
+                                    gridNotes[note.row][note.col].duration = targetDuration;
+                                    
+                                    for (let i = 1; i < Math.max(currentDuration, targetDuration); i++) {
+                                        const cellCol = note.col + i;
+                                        if (cellCol < gridCols) {
+                                            if (i < targetDuration) {
+                                                gridNotes[note.row][cellCol] = { linked: true };
+                                            } else {
+                                                gridNotes[note.row][cellCol] = null;
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+                            renderGridNotes();
+                        }
+                    }
+                })
+                .draggable({
+                    listeners: {
+                        start (event) {
+                            const noteElement = event.target;
+                            const row = parseInt(noteElement.getAttribute('data-row'));
+                            const col = parseInt(noteElement.getAttribute('data-col'));
+                            const startCol = getNoteStart(row, col);
+                            if (startCol === -1) return;
+                            
+                            const noteObj = gridNotes[row][startCol];
+                            if (!noteObj.selected) {
+                                document.querySelectorAll('.note.selected').forEach(el => el.classList.remove('selected'));
+                                clearSelectedNotes();
+                                
+                                noteObj.selected = true;
+                                noteElement.classList.add('selected');
+                            }
+
+                            noteElement.setAttribute('data-x', 0);
+                            noteElement.setAttribute('data-y', 0);
+                            noteElement.style.zIndex = '10';
+                        },
+                        move (event) {
+                            const noteElement = event.target;
+                            let x = (parseFloat(noteElement.getAttribute('data-x')) || 0) + event.dx;
+                            let y = (parseFloat(noteElement.getAttribute('data-y')) || 0) + event.dy;
+                            
+                            noteElement.style.transform = `translate(${x}px, ${y}px)`;
+                            
+                            noteElement.setAttribute('data-x', x);
+                            noteElement.setAttribute('data-y', y);
+                        },
+                        end (event) {
+                            const noteElement = event.target;
+                            const originalRow = parseInt(noteElement.getAttribute('data-row'));
+                            const originalCol = parseInt(noteElement.getAttribute('data-col'));
+                            
+                            const x = parseFloat(noteElement.getAttribute('data-x')) || 0;
+                            const y = parseFloat(noteElement.getAttribute('data-y')) || 0;
+
+                            noteElement.style.transform = 'translate(0px, 0px)';
+                            noteElement.removeAttribute('data-x');
+                            noteElement.removeAttribute('data-y');
+                            noteElement.style.zIndex = '3';
+
+                            const newCol = Math.round((originalCol * cellSize + x) / cellSize);
+                            const newRow = Math.max(0, Math.min(gridRows - 1, Math.round((originalRow * PIANO_KEY_HEIGHT + y) / PIANO_KEY_HEIGHT)));
+                            
+                            const deltaCol = newCol - originalCol;
+                            const deltaRow = newRow - originalRow;
+
+                            if (deltaCol === 0 && deltaRow === 0) {
+                                renderGridNotes();
+                                return;
+                            }
+
+                            const selectedNotes = getSelectedNotes();
+                            
+                            let canMove = true;
+                            for (const note of selectedNotes) {
+                                const targetRow = note.row + deltaRow;
+                                const targetCol = note.col + deltaCol;
+                                const duration = note.duration || 1;
+
+                                if (targetRow < 0 || targetRow >= gridRows || targetCol < 0 || (targetCol + duration) > gridCols) {
+                                    canMove = false;
+                                    break;
+                                }
+                                
+                                for (let i = 0; i < duration; i++) {
+                                    const checkCol = targetCol + i;
+                                    const noteAtTarget = gridNotes[targetRow][checkCol];
+                                    if (noteAtTarget && !noteAtTarget.selected) {
+                                         canMove = false;
+                                         break;
+                                    }
+                                }
+                                if(!canMove) break;
+                            }
+
+                            if (canMove) {
+                                saveStateForUndo();
+                                const notesToMove = JSON.parse(JSON.stringify(selectedNotes));
+
+                                for (const note of notesToMove) {
+                                    deleteNote(note.row, note.col, false);
+                                }
+
+                                for (const note of notesToMove) {
+                                    const targetRow = note.row + deltaRow;
+                                    const targetCol = note.col + deltaCol;
+                                    const duration = note.duration || 1;
+                                    
+                                    const newNoteObject = {
+                                        ...note,
+                                        note: noteNames[targetRow],
+                                        row: targetRow,
+                                        col: targetCol,
+                                        selected: true
+                                    };
+                                    gridNotes[targetRow][targetCol] = newNoteObject;
+                                    for (let i = 1; i < duration; i++) {
+                                        gridNotes[targetRow][targetCol + i] = { linked: true };
+                                    }
+                                }
+                            }
+                            
+                            renderGridNotes();
+                        }
+                    }
+                });
+        }
+        
+        function cleanupNoteInteractions(noteElement) {
+            if (noteElement.dataset.interactInstance) {
+                noteElement.dataset.interactInstance.unset();
+                delete noteElement.dataset.interactInstance;
+            }
+        }
+
+        function handleGridClick(row, col) {
+            saveStateForUndo();
+            if (activeChordType === 'Solo') {
+                toggleNote(row, col);
+            } else {
+                placeChord(row, col, activeChordType);
+            }
+        }
+        
+        function toggleNote(row, col) {
+            const startCol = getNoteStart(row, col);
+            if (startCol !== -1) {
+                deleteNote(row, startCol);
+            } else {
+                gridNotes[row][col] = { note: noteNames[row], duration: 1, velocity: currentNoteVelocity };
+                playNote(noteNames[row]);
+            }
+            renderGridNotes();
+        }
+        
+        function placeChord(rootRow, col, chordType) {
+            const intervals = CHORDS[chordType];
+            const duration = 1;
+            const chordNotesForPlayback = [];
+
+            // Check if chord can be placed without going out of bounds
+            for (const interval of intervals) {
+                const targetRow = rootRow - interval;
+                if (targetRow < 0 || targetRow >= gridRows) {
+                    console.warn("Akor, grid sınırlarının dışına taşıyor.");
+                    return; // Abort placing chord
+                }
+            }
+            
+            // Delete existing notes and place new chord notes
+            for (const interval of intervals) {
+                const targetRow = rootRow - interval;
+                const existingNoteStart = getNoteStart(targetRow, col);
+                if (existingNoteStart !== -1) {
+                    deleteNote(targetRow, existingNoteStart, false);
+                }
+                
+                gridNotes[targetRow][col] = { note: noteNames[targetRow], duration: duration, velocity: currentNoteVelocity };
+                chordNotesForPlayback.push(noteNames[targetRow]);
+            }
+
+            const subdivision = (quantizeMap[quantizeValue].cols / 4) + 'n';
+            synth.triggerAttackRelease(chordNotesForPlayback, subdivision, Tone.now(), currentNoteVelocity / 127);
+            renderGridNotes();
+        }
+
+        function deleteNote(row, col, rerender = true) {
+             const startCol = getNoteStart(row, col);
+             if (startCol === -1) return;
+
+             const duration = gridNotes[row][startCol]?.duration || 1;
+             for (let i = 0; i < duration; i++) {
+                 if (gridNotes[row][startCol + i]) {
+                     gridNotes[row][startCol + i] = null;
+                 }
+             }
+             if (rerender) {
+                renderGridNotes();
+             }
+        }
+
+        function getNoteStart(row, col) {
+            if (!gridNotes[row] || !gridNotes[row][col]) return -1;
+            let startCol = col;
+            while(startCol >= 0 && gridNotes[row][startCol]?.linked) {
+                startCol--;
+            }
+            return startCol;
+        }
+        
+        function renderChordLibrary() {
+            chordLibraryContainer.innerHTML = '';
+            for (const chordName in CHORDS) {
+                const button = document.createElement('button');
+                button.className = 'chord-btn';
+                button.textContent = chordName;
+                if (chordName === activeChordType) {
+                    button.classList.add('active');
+                }
+                button.addEventListener('click', () => {
+                    activeChordType = chordName;
+                    renderChordLibrary(); // Re-render to update active state
+                });
+                chordLibraryContainer.appendChild(button);
+            }
+        }
+        
+        // --- Event Listeners ---
+        gridArea.addEventListener('scroll', () => {
+            pianoRollKeys.scrollTop = gridArea.scrollTop;
+            chordLibraryContainer.scrollTop = gridArea.scrollTop;
+            timelineMarkersContainer.scrollLeft = gridArea.scrollLeft;
+
+            // Debounce scroll updates
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                renderSequencer();
+            }, 100);
+        });
+        
+        timelineMarkersContainer.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+
+            const wasPlaying = isPlaying;
+            if (wasPlaying) {
+                Tone.Transport.pause();
+                isPlaying = false;
+            }
+
+            isScrubbing = true;
+
+            const updatePlayheadPosition = (event) => {
+                const timelineRect = timelineMarkersContainer.getBoundingClientRect();
+                const scrollLeft = gridArea.scrollLeft;
+                const mouseX = event.clientX - timelineRect.left;
+                
+                const totalWidth = gridCols * cellSize;
+                const newLeft = Math.max(0, mouseX + scrollLeft);
+                const clampedLeft = Math.min(newLeft, totalWidth);
+
+                // Snap to grid
+                const col = Math.floor(clampedLeft / cellSize);
+                const snappedLeft = col * cellSize;
+
+                playhead.style.left = `${snappedLeft}px`;
+                
+                // Update transport time
+                const subdivision = (quantizeMap[quantizeValue].cols / 4) + 'n';
+                const newPosition = Tone.Time(subdivision).toSeconds() * col;
+                Tone.Transport.position = newPosition;
+            };
+
+            updatePlayheadPosition(e); // Update on initial click
+
+            const onMouseMove = (moveEvent) => {
+                if (isScrubbing) {
+                    updatePlayheadPosition(moveEvent);
+                }
+            };
+
+            const onMouseUp = () => {
+                isScrubbing = false;
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                if (wasPlaying) {
+                    Tone.Transport.start();
+                    isPlaying = true;
+                }
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+        
+        playBtn.addEventListener('click', async () => {
+            if (isPlaying) return;
+            await Tone.start();
+            isPlaying = true;
+            
+            Tone.Transport.bpm.value = bpm;
+
+            if (noteSequence) {
+                noteSequence.dispose();
+            }
+            
+            const subdivision = (quantizeMap[quantizeValue].cols / 4) + 'n';
+            Tone.Transport.loop = true;
+            Tone.Transport.loopEnd = Tone.Time(subdivision).toSeconds() * gridCols;
+
+            noteSequence = new Tone.Sequence((time, col) => {
+                Tone.Draw.schedule(() => {
+                    playhead.style.left = `${col * cellSize}px`;
+                }, time);
+
+                for (let row = 0; row < gridRows; row++) {
+                    const noteObj = gridNotes[row][col];
+                    if (noteObj && !noteObj.linked) {
+                        const noteDurationInCells = noteObj.duration || 1;
+                        const durationInSeconds = Tone.Time(subdivision).toSeconds() * noteDurationInCells;
+                        synth.triggerAttackRelease(noteObj.note, durationInSeconds, time, noteObj.velocity / 127);
+                    }
+                }
+            }, Array.from({length: gridCols}, (_, i) => i), subdivision).start(0);
+            
+            Tone.Transport.start();
+        });
+        
+        pauseBtn.addEventListener('click', () => {
+            if (!isPlaying) return;
+            Tone.Transport.pause();
+            isPlaying = false;
+        });
+        
+        stopBtn.addEventListener('click', () => {
+            if (noteSequence) {
+                noteSequence.dispose();
+                noteSequence = null;
+            }
+            
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            
+            playhead.style.left = '0';
+            isPlaying = false;
+            Tone.Transport.position = 0;
+            
+            if (!isMetronomeOn) {
+                Tone.Transport.pause();
+            }
+        });
+
+        tempoSlider.addEventListener('input', function() {
+            bpm = parseInt(this.value);
+            tempoValue.textContent = `${bpm} BPM`;
+            if (isPlaying) {
+                Tone.Transport.bpm.value = bpm;
+            }
+        });
+
+        quantizeSelect.addEventListener('change', function() {
+            const oldGridCols = gridCols;
+            const oldNotes = JSON.parse(JSON.stringify(gridNotes));
+
+            quantizeValue = this.value;
+            const newSettings = quantizeMap[quantizeValue];
+            
+            cellsPerBar = newSettings.cols / 4;
+            gridCols = cellsPerBar * numBars;
+            cellSize = newSettings.size * zoomLevel;
+
+            const newGridNotes = Array.from({ length: gridRows }, () => Array(gridCols).fill(null));
+            const ratio = gridCols / oldGridCols;
+
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < oldGridCols; col++) {
+                    const noteObj = oldNotes[row][col];
+                    if (noteObj && !noteObj.linked) {
+                        const newCol = Math.floor(col * ratio);
+                        
+                        if (newCol < gridCols) {
+                            const newDuration = noteObj.duration || 1;
+                            const cappedDuration = Math.min(newDuration, gridCols - newCol);
+
+                            newGridNotes[row][newCol] = { ...noteObj, duration: cappedDuration };
+
+                            for (let i = 1; i < cappedDuration; i++) {
+                                if (newCol + i < gridCols) {
+                                    newGridNotes[row][newCol + i] = { linked: true };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            gridNotes = newGridNotes;
+            renderSequencer();
+        });
+
+        numBarsInput.addEventListener('change', function() {
+            saveStateForUndo();
+            const newNumBars = parseInt(this.value, 10);
+            if (isNaN(newNumBars) || newNumBars < 1 || newNumBars > 150) {
+                this.value = numBars;
+                return;
+            }
+
+            const oldGridCols = gridCols;
+            numBars = newNumBars;
+            cellsPerBar = quantizeMap[quantizeValue].cols / 4;
+            gridCols = cellsPerBar * numBars;
+
+            const oldNotes = JSON.parse(JSON.stringify(gridNotes));
+            gridNotes = Array.from({ length: gridRows }, () => Array(gridCols).fill(null));
+            
+            const colsToCopy = Math.min(oldGridCols, gridCols);
+
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < colsToCopy; col++) {
+                    const noteObj = oldNotes[row][col];
+                    if (noteObj && !noteObj.linked) {
+                        const duration = noteObj.duration || 1;
+                        if (col + duration <= colsToCopy) {
+                             gridNotes[row][col] = noteObj;
+                             for(let i = 1; i < duration; i++) {
+                                 gridNotes[row][col + i] = { linked: true };
+                             }
+                        }
+                    }
+                }
+            }
+            
+            renderSequencer();
+        });
+
+        // Edit Toolbar Buttons
+        cutBtn.addEventListener('click', cutSelectedNotes);
+        copyBtn.addEventListener('click', copySelectedNotes);
+        pasteBtn.addEventListener('click', pasteClipboardNotes);
+        selectAllBtn.addEventListener('click', selectAllNotes);
+        undoBtn.addEventListener('click', undo);
+        redoBtn.addEventListener('click', redo);
+        zoomInBtn.addEventListener('click', zoomIn);
+        zoomOutBtn.addEventListener('click', zoomOut);
+
+        // Clipboard & Select All Functions
+        function getSelectedNotes() {
+            const selected = [];
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const note = gridNotes[row][col];
+                    if (note && !note.linked && note.selected) {
+                        selected.push({ row, col, ...note });
+                    }
+                }
+            }
+            return selected;
+        }
+
+        function clearSelectedNotes() {
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const note = gridNotes[row][col];
+                    if (note && !note.linked) {
+                        note.selected = false;
+                    }
+                }
+            }
+        }
+
+        function cutSelectedNotes() {
+            const selected = getSelectedNotes();
+            if (selected.length === 0) return;
+            saveStateForUndo();
+            copySelectedNotes();
+            for (const { row, col } of selected) {
+                deleteNote(row, col, false);
+            }
+            renderGridNotes();
+        }
+
+        function copySelectedNotes() {
+            const selected = getSelectedNotes();
+            if (selected.length === 0) return;
+            // Find top-left most note for relative offset
+            let minRow = Math.min(...selected.map(n => n.row));
+            let minCol = Math.min(...selected.map(n => n.col));
+            noteClipboard = selected.map(n => ({ ...n, row: n.row - minRow, col: n.col - minCol }));
+            clipboardOffset = { row: minRow, col: minCol };
+        }
+
+        function pasteClipboardNotes() {
+            if (noteClipboard.length === 0) return;
+            saveStateForUndo();
+            
+            // Paste at the playhead's current column, maintaining the original pitch.
+            const playheadLeft = parseInt(playhead.style.left || '0', 10);
+            const targetCol = Math.round(playheadLeft / cellSize);
+            const targetRow = clipboardOffset.row; // Use original row offset from copy.
+
+            // Deselect all notes before pasting
+            clearSelectedNotes();
+
+            // Place notes from the clipboard
+            for (const n of noteClipboard) {
+                const row = targetRow + n.row;
+                const col = targetCol + n.col;
+                
+                if (row >= 0 && row < gridRows && col >= 0 && col < gridCols) {
+                    const duration = n.duration || 1;
+                    if (col + duration > gridCols) continue; // Skip notes that don't fit horizontally
+
+                    // Proactively clear the space where the note and its duration will occupy
+                    for (let i = 0; i < duration; i++) {
+                        const cellCol = col + i;
+                        const existingNoteStart = getNoteStart(row, cellCol);
+                        if (existingNoteStart !== -1) {
+                            deleteNote(row, existingNoteStart, false); // Don't re-render yet
+                        }
+                    }
+
+                    // Place the new note, ensuring note name matches the row
+                    const newNote = { ...n, note: noteNames[row], row, col, selected: true, duration };
+                    gridNotes[row][col] = newNote;
+                    for (let i = 1; i < duration; i++) {
+                        gridNotes[row][col + i] = { linked: true };
+                    }
+                }
+            }
+            renderGridNotes();
+        }
+
+        function selectAllNotes() {
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const note = gridNotes[row][col];
+                    if (note && !note.linked) {
+                        note.selected = true;
+                    }
+                }
+            }
+            renderGridNotes();
+        }
+
+        // Initial button states
+        updateUndoRedoButtons();
+
+        // --- Undo/Redo & Zoom Functions ---
+        function saveStateForUndo() {
+            // Only save state if there are actual changes
+            const currentState = JSON.stringify(gridNotes);
+            const lastState = undoStack.length > 0 ? JSON.stringify(undoStack[undoStack.length - 1]) : null;
+            
+            if (currentState !== lastState) {
+                undoStack.push(JSON.parse(currentState));
+                redoStack = [];
+                pruneUndoStack();
+                updateUndoRedoButtons();
+            }
+        }
+
+        function undo() {
+            if (undoStack.length === 0) return;
+            redoStack.push(JSON.parse(JSON.stringify(gridNotes)));
+            const prevState = undoStack.pop();
+            gridNotes = prevState;
+            renderSequencer();
+            updateUndoRedoButtons();
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            undoStack.push(JSON.parse(JSON.stringify(gridNotes)));
+            const nextState = redoStack.pop();
+            gridNotes = nextState;
+            renderSequencer();
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            undoBtn.disabled = undoStack.length === 0;
+            redoBtn.disabled = redoStack.length === 0;
+            undoBtn.classList.toggle('opacity-50', undoBtn.disabled);
+            undoBtn.classList.toggle('cursor-not-allowed', undoBtn.disabled);
+            redoBtn.classList.toggle('opacity-50', redoBtn.disabled);
+            redoBtn.classList.toggle('cursor-not-allowed', redoBtn.disabled);
+        }
+
+        function zoomIn() {
+            if (currentZoomIndex < zoomLevels.length - 1) {
+                currentZoomIndex++;
+                zoomLevel = zoomLevels[currentZoomIndex];
+                cellSize = quantizeMap[quantizeValue].size * zoomLevel;
+                renderSequencer();
+            }
+        }
+
+        function zoomOut() {
+            if (currentZoomIndex > 0) {
+                currentZoomIndex--;
+                zoomLevel = zoomLevels[currentZoomIndex];
+                cellSize = quantizeMap[quantizeValue].size * zoomLevel;
+                renderSequencer();
+            }
+        }
+
+        const metronomeLoop = new Tone.Loop((time) => {
+            if (!isMetronomeOn) return;
+            // Get current transport position 'bar:beat:sixteenth'
+            const [bar, beat] = Tone.Transport.position.split(':').map(Number);
+            if (beat === 0) {
+                metronomeTock.triggerAttack("C2", time);
+            } else {
+                metronomeTick.triggerAttack("C4", time);
+            }
+        }, "4n").start(0);
+
+        metronomeBtn.addEventListener('click', async () => {
+            await Tone.start();
+            isMetronomeOn = !isMetronomeOn;
+            metronomeBtn.classList.toggle('bg-accent', isMetronomeOn);
+            metronomeBtn.classList.toggle('text-white', isMetronomeOn);
+            metronomeBtn.classList.toggle('bg-slate-700', !isMetronomeOn);
+
+            if (isMetronomeOn && Tone.Transport.state !== 'started') {
+                Tone.Transport.start();
+            } else if (!isMetronomeOn && !isPlaying) {
+                 Tone.Transport.pause();
+                 Tone.Transport.position = 0;
+            }
+        });
+
+        // Initial Render Call
+        renderSequencer();
+        renderChordLibrary();
+
+        document.addEventListener('keydown', (e) => {
+            const activeElement = document.activeElement;
+            const isInputFocused = activeElement.tagName === 'INPUT' || activeElement.tagName === 'SELECT';
+
+            if (isInputFocused) {
+                return; // Allow default browser behavior in inputs
+            }
+
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key.toLowerCase()) {
+                    case 'c':
+                        e.preventDefault();
+                        copySelectedNotes();
+                        break;
+                    case 'v':
+                        e.preventDefault();
+                        pasteClipboardNotes();
+                        break;
+                    case 'x':
+                        e.preventDefault();
+                        cutSelectedNotes();
+                        break;
+                    case 'z':
+                        e.preventDefault();
+                        if (e.shiftKey) {
+                            redo();
+                        } else {
+                            undo();
+                        }
+                        break;
+                    case 'a':
+                        e.preventDefault();
+                        selectAllNotes();
+                        break;
+                }
+            } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                const selectedNotes = getSelectedNotes();
+                if (selectedNotes.length > 0) {
+                    e.preventDefault(); // Prevent browser back navigation on backspace
+                    saveStateForUndo();
+                    for (const note of selectedNotes) {
+                        deleteNote(note.row, note.col, false); // Don't re-render in loop
+                    }
+                    renderGridNotes(); // Re-render once at the end
+                }
+            }
+        });
+
+        importMidiBtn.addEventListener('click', () => {
+            midiFileInput.click();
+        });
+
+        midiFileInput.addEventListener('change', handleMidiFile);
+
+        async function handleMidiFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Show loading indicator
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            loadingDiv.innerHTML = '<div class="bg-secondary p-4 rounded-lg"><i class="fas fa-spinner fa-spin mr-2"></i>Loading MIDI file...</div>';
+            document.body.appendChild(loadingDiv);
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const midi = new Midi(arrayBuffer);
+                saveStateForUndo();
+
+                // Update BPM
+                if (midi.header.tempos.length > 0) {
+                    bpm = Math.round(midi.header.tempos[0].bpm);
+                    tempoSlider.value = bpm;
+                    tempoValue.textContent = `${bpm} BPM`;
+                    if(isPlaying) {
+                        Tone.Transport.bpm.value = bpm;
+                    }
+                }
+
+                // Find last note time
+                let lastNoteTime = 0;
+                midi.tracks.forEach(track => {
+                    track.notes.forEach(note => {
+                        const noteEndTime = note.time + note.duration;
+                        if (noteEndTime > lastNoteTime) {
+                            lastNoteTime = noteEndTime;
+                        }
+                    });
+                });
+
+                // Calculate grid dimensions
+                const subdivision = (quantizeMap[quantizeValue].cols / 4) + 'n';
+                const cellDurationInSeconds = Tone.Time(subdivision).toSeconds();
+                const requiredCols = Math.ceil(lastNoteTime / cellDurationInSeconds);
+                const currentCellsPerBar = quantizeMap[quantizeValue].cols / 4;
+                const requiredBars = Math.max(1, Math.ceil(requiredCols / currentCellsPerBar));
+                
+                if (requiredBars > 150) {
+                    alert(`The MIDI file is too long (${requiredBars} bars) and will be truncated to 150 bars.`);
+                }
+                const newNumBars = Math.min(requiredBars, 150);
+
+                if (newNumBars !== numBars) {
+                    numBars = newNumBars;
+                    numBarsInput.value = numBars;
+                    cellsPerBar = quantizeMap[quantizeValue].cols / 4;
+                    gridCols = cellsPerBar * numBars;
+                }
+
+                // Clear and prepare new grid
+                gridNotes = Array.from({ length: gridRows }, () => Array(gridCols).fill(null));
+                clearSelectedNotes();
+
+                // Process MIDI data in chunks
+                const chunkSize = 1000;
+                const allNotes = [];
+                midi.tracks.forEach(track => {
+                    track.notes.forEach(note => {
+                        allNotes.push(note);
+                    });
+                });
+
+                // Sort notes by time
+                allNotes.sort((a, b) => a.time - b.time);
+
+                for (let i = 0; i < allNotes.length; i += chunkSize) {
+                    const chunk = allNotes.slice(i, i + chunkSize);
+                    
+                    chunk.forEach(note => {
+                        const row = startMidi - note.midi;
+                        if (row < 0 || row >= gridRows) return;
+
+                        const col = Math.round(note.time / cellDurationInSeconds);
+                        let durationInCells = Math.max(1, Math.round(note.duration / cellDurationInSeconds));
+
+                        if (col >= gridCols) return;
+
+                        if (col + durationInCells > gridCols) {
+                            durationInCells = gridCols - col;
+                        }
+
+                        if (!gridNotes[row][col]) {
+                            gridNotes[row][col] = {
+                                note: noteNames[row],
+                                duration: durationInCells,
+                                velocity: Math.round(note.velocity * 127),
+                                selected: false
+                            };
+                            for (let i = 1; i < durationInCells; i++) {
+                                gridNotes[row][col + i] = { linked: true };
+                            }
+                        }
+                    });
+
+                    // Allow UI to update between chunks
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
+                renderSequencer();
+            } catch (err) {
+                console.error("Error parsing MIDI file:", err);
+                alert("Failed to import MIDI file. It might be invalid.");
+            } finally {
+                midiFileInput.value = '';
+                loadingDiv.remove();
+            }
+        }
+
+        // Add performance monitoring
+        let lastRenderTime = 0;
+        function monitorPerformance() {
+            const now = performance.now();
+            const renderTime = now - lastRenderTime;
+            
+            if (renderTime > 16.67) { // More than 60fps
+                console.warn(`Slow render detected: ${Math.round(renderTime)}ms`);
+            }
+            
+            lastRenderTime = now;
+        }
+
+        // Add requestAnimationFrame for smooth animations
+        let animationFrame;
+        function updatePlayhead(time) {
+            const col = Math.floor(Tone.Transport.progress * gridCols);
+            playhead.style.left = `${col * cellSize}px`;
+            
+            if (isPlaying) {
+                animationFrame = requestAnimationFrame(updatePlayhead);
+            }
+        }
+
+        // Optimize undo/redo stacks
+        function pruneUndoStack() {
+            if (undoStack.length > 50) {
+                undoStack = undoStack.slice(-50);
+            }
+        }
+
+        // Add cleanup on window unload
+        window.addEventListener('unload', () => {
+            // Cleanup all note interactions
+            document.querySelectorAll('.note').forEach(cleanupNoteInteractions);
+            
+            // Terminate Web Worker
+            if (midiWorker) {
+                midiWorker.terminate();
+            }
+            
+            // Clear any pending timeouts
+            if (scrollTimeout) {
+                clearTimeout(scrollTimeout);
+            }
+        });
+
+        function exportToMidi() {
+            // Create a new MIDI file
+            const midi = new Midi();
+            
+            // Set the BPM
+            midi.header.setTempo(bpm);
+            
+            // Create a track
+            const track = midi.addTrack();
+            
+            // Convert grid notes to MIDI notes
+            const subdivision = (quantizeMap[quantizeValue].cols / 4) + 'n';
+            const cellDurationInSeconds = Tone.Time(subdivision).toSeconds();
+            
+            for (let row = 0; row < gridRows; row++) {
+                for (let col = 0; col < gridCols; col++) {
+                    const noteObj = gridNotes[row][col];
+                    if (noteObj && !noteObj.linked) {
+                        const midiNumber = startMidi - row; // Convert row back to MIDI note number
+                        const startTime = col * cellDurationInSeconds;
+                        const duration = (noteObj.duration || 1) * cellDurationInSeconds;
+                        const velocity = (noteObj.velocity || 100) / 127; // Convert back to 0-1 range
+                        
+                        track.addNote({
+                            midi: midiNumber,
+                            time: startTime,
+                            duration: duration,
+                            velocity: velocity
+                        });
+                    }
+                }
+            }
+            
+            // Convert to array buffer
+            const arrayBuffer = midi.toArray();
+            
+            // Create blob and download
+            const blob = new Blob([arrayBuffer], { type: 'audio/midi' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'sequence.mid';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Add click handler for export button
+        exportMidiBtn.addEventListener('click', exportToMidi);
+
+        // Add test function to verify MIDI export
+        function testMidiExport() {
+            // Create a test pattern
+            const testNotes = [
+                { row: 48, col: 0, duration: 4 },  // C4 whole note
+                { row: 45, col: 4, duration: 2 },  // E4 half note
+                { row: 43, col: 6, duration: 2 },  // G4 half note
+                { row: 48, col: 8, duration: 4 }   // C4 whole note
+            ];
+            
+            // Clear grid
+            gridNotes = Array.from({ length: gridRows }, () => Array(gridCols).fill(null));
+            
+            // Place test notes
+            testNotes.forEach(({ row, col, duration }) => {
+                const noteRow = startMidi - row;
+                gridNotes[noteRow][col] = {
+                    note: noteNames[noteRow],
+                    duration: duration,
+                    velocity: 100,
+                    selected: false
+                };
+                
+                // Add linked cells
+                for (let i = 1; i < duration; i++) {
+                    gridNotes[noteRow][col + i] = { linked: true };
+                }
+            });
+            
+            renderSequencer();
+        }
+
+        // Add keyboard shortcut for testing (Ctrl+Shift+T)
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 't') {
+                e.preventDefault();
+                testMidiExport();
+            }
+        });
+    });
+    </script>
+</body>
+</html>
