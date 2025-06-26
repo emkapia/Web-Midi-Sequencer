@@ -4,16 +4,14 @@ Bu proje, modern bir MIDI sequencer web uygulamasıdır. Sadece HTML, CSS (Tailw
 
 ## Kurulum ve Çalıştırma
 
-1. **Dosyaları İndir:**
-   - `index.html` dosyasını bu klasöre kaydedin.
 
-2. https://emkapia.github.io/webmidiseq/
+1. https://emkapia.github.io/webmidiseq/
 
 ## Özellikler
 - Modern ve responsive arayüz
 - Piano roll ve zaman çizelgesi
 - Sürükle-bırak ile nota düzenleme
-- Track ayarları ve efektler
+- Track ayarı
 - Tamamen istemci tarafında çalışır
 
 ## Gereksinimler
