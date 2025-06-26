@@ -274,15 +274,73 @@
             background: #273449;
         }
     </style>
+    <style>
+        @media (max-width: 768px) {
+            /* Responsive adjustments for mobile devices */
+            #top-toolbar-container {
+                flex-direction: column;
+                align-items: center;
+                gap: 0.5rem;
+            }
+
+            #top-toolbar-left, #top-toolbar-right {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+                justify-content: center;
+                width: 100%;
+            }
+            
+            #top-toolbar-left > *, #top-toolbar-right > * {
+                margin: 0 !important;
+            }
+
+            .main-title span {
+                display: none; /* Hide text on mobile */
+            }
+
+            /* Adjust side panel widths for mobile */
+            .header-chord-spacer, #chord-library-left {
+                width: 60px;
+                flex-shrink: 0;
+            }
+            
+            .chord-btn {
+                 font-size: 10px;
+                 padding: 4px 2px;
+            }
+            
+            /* Reduce width of piano keys */
+            .header-piano-spacer, #piano-roll-keys {
+                width: 50px;
+                flex-shrink: 0;
+            }
+            
+            .piano-key {
+                font-size: 10px;
+            }
+
+            #edit-toolbar {
+                flex-wrap: wrap;
+                justify-content: center;
+                padding: 4px;
+                gap: 4px;
+            }
+
+            /* Ensure body doesn't have weird overflows */
+            body, html {
+                -webkit-text-size-adjust: 100%; /* Prevent font scaling on iOS */
+            }
+        }
+    </style>
 </head>
 <body class="bg-primary text-slate-200">
     <!-- Main App Container -->
     <div class="flex flex-col h-screen">
         <!-- Toolbar -->
         <div class="bg-secondary border-b border-slate-700 p-3 flex-shrink-0">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <a href="#" onclick="location.reload(); return false;" class="flex items-center text-xl font-bold text-white no-underline" title="Reload Sequencer">
+            <div class="flex items-center justify-between" id="top-toolbar-container">
+                <div class="flex items-center space-x-4" id="top-toolbar-left">
+                    <a href="#" onclick="location.reload(); return false;" class="main-title flex items-center text-xl font-bold text-white no-underline" title="Reload Sequencer">
                         <img src="mixer-icon.png" alt="WebMidiSequencer Logo" class="w-8 h-8 mr-2">
                         <span>WebMidiSequencer</span>
                     </a>
@@ -309,7 +367,7 @@
                         <i class="fas fa-bell"></i>
                     </button>
                 </div>
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-4" id="top-toolbar-right">
                      <div class="text-xs">Quantize</div>
                     <select class="bg-slate-700 rounded-md py-0.5 px-0.5 text-xs focus:outline-none cursor-pointer" id="quantizeSelect">
                         <option>1/4 Note</option>
