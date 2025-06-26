@@ -11,7 +11,6 @@ Bu proje, modern bir MIDI sequencer web uygulamasıdır. Sadece HTML, CSS (Tailw
 - Modern ve responsive arayüz
 - Piano roll ve zaman çizelgesi
 - Sürükle-bırak ile nota düzenleme
-- Track ayarı
 - Tamamen istemci tarafında çalışır
 
 ## Gereksinimler
