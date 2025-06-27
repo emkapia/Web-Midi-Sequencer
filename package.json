@@ -6,13 +6,14 @@
   "main": "webmidi.min.js",
   "types": "webmidi.d.ts",
   "scripts": {
-    "test": "BROWSER=NONE mocha ./test/headless --exit",
-    "test-all": "npm run types && npm run lint && npm run test-coverage",
-    "test-coverage": "nyc --reporter=text npm run test",
-    "lint": "eslint ./src/*.js",
-    "release": "grunt release",
-    "types": "tsc --strict --noEmit ./webmidi.d.ts"
-  },
+   "test": "BROWSER=NONE mocha ./test/headless --exit",
+   "test-all": "npm run types && npm run lint && npm run test-coverage",
+   "test-coverage": "nyc --reporter=text npm run test",
+   "lint": "eslint ./src/*.js",
+   "release": "grunt release",
+   "types": "tsc --strict --noEmit ./webmidi.d.ts",
+   "build": "echo 'No build needed'"
+},
   "repository": {
     "type": "git",
     "url": "git://github.com/djipco/webmidi.git"
