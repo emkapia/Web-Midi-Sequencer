@@ -7,8 +7,8 @@ webmidiseq, tamamen tarayıcıda çalışan, basit ama güçlü bir MIDI düzenl
 MIDI dosyalarını import ederek dinleyebilir veya kendi yazdığınız melodileri export ederek DAW’ınıza taşıyabilirsiniz.
 Hiçbir kurulum gerekmez, tamamen ücretsiz.
 
-1. https://emkapia.github.io/Web-Midi-Sequencer/
-2. https://webmidiseq.netlify.app/
+1. (https://webmidiseq.netlify.app/)
+
 
 ## Özellikler
 - Modern ve responsive arayüz
